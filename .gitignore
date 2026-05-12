@@ -1,5 +1,6 @@
 node_modules/
 .next/
 out/
+.env.local
 # Model weights — large binaries, downloaded locally via npm run model:download
 public/models/

@@ -58,6 +58,15 @@ function AvgScore({ value }: { value: number }) {
 
 // ── Model Picker ──────────────────────────────────────────────────────────────
 
+type SortKey = "accuracy" | "size";
+
+function sortModels(models: TranslatorModel[], key: SortKey): TranslatorModel[] {
+  if (key === "accuracy") return [...models].sort((a, b) => b.score.accuracy - a.score.accuracy);
+  // parse size string like "~0.7 GB" → number in GB
+  const gb = (m: TranslatorModel) => parseFloat(m.sizeHuman.replace(/[^0-9.]/g, "")) || 0;
+  return [...models].sort((a, b) => gb(a) - gb(b));
+}
+
 function ModelPicker({
   selected, onChange, hasWebGPU,
 }: {
@@ -66,6 +75,7 @@ function ModelPicker({
   hasWebGPU: boolean | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("accuracy");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,8 +87,8 @@ function ModelPicker({
   }, []);
 
   const isWebGPU = selected.backend === "mlc" || selected.backend === "onnx-webgpu";
-  const onnxModels  = ONNX_MODELS.filter(m => m.backend === "onnx");
-  const gpuModels   = ONNX_MODELS.filter(m => m.backend === "mlc" || m.backend === "onnx-webgpu");
+  const onnxModels  = sortModels(ONNX_MODELS.filter(m => m.backend === "onnx"), sortKey);
+  const gpuModels   = sortModels(ONNX_MODELS.filter(m => m.backend === "mlc" || m.backend === "onnx-webgpu"), sortKey);
 
   return (
     <div ref={ref} className="relative">
@@ -106,7 +116,7 @@ function ModelPicker({
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">ONNX — Universal (WASM)</span>
             <span className="text-[10px] text-slate-400">works on any browser · no GPU needed</span>
           </div>
-          <ModelRows models={onnxModels} selected={selected} onChange={m => { onChange(m); setOpen(false); }} />
+          <ModelRows models={onnxModels} selected={selected} onChange={m => { onChange(m); setOpen(false); }} sortKey={sortKey} onSortChange={setSortKey} />
 
           {/* WebGPU section */}
           <div className="px-4 py-2 border-b border-slate-100 bg-violet-50/60 flex items-center justify-between">
@@ -118,7 +128,7 @@ function ModelPicker({
               {hasWebGPU === true ? "✓ WebGPU detected" : hasWebGPU === false ? "✗ not available" : "detecting…"}
             </span>
           </div>
-          <ModelRows models={gpuModels} selected={selected} onChange={m => { onChange(m); setOpen(false); }} dimmed={hasWebGPU === false} />
+          <ModelRows models={gpuModels} selected={selected} onChange={m => { onChange(m); setOpen(false); }} dimmed={hasWebGPU === false} sortKey={sortKey} onSortChange={setSortKey} />
         </div>
       )}
     </div>
@@ -126,22 +136,28 @@ function ModelPicker({
 }
 
 function ModelRows({
-  models, selected, onChange, dimmed = false,
+  models, selected, onChange, dimmed = false, sortKey, onSortChange,
 }: {
   models: TranslatorModel[];
   selected: TranslatorModel;
   onChange: (m: TranslatorModel) => void;
   dimmed?: boolean;
+  sortKey: SortKey;
+  onSortChange: (k: SortKey) => void;
 }) {
   return (
     <>
       <div className="grid grid-cols-[1fr_56px_56px_56px_48px_72px] gap-x-3 px-4 py-1.5 border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
         <span>Model</span>
+        <span className={`text-right cursor-pointer select-none hover:text-slate-600 ${sortKey === "accuracy" ? "text-blue-500" : ""}`} onClick={() => onSortChange("accuracy")}>
+          Accuracy {sortKey === "accuracy" ? "↓" : ""}
+        </span>
         <span className="text-right">Avg</span>
-        <span className="text-right">Accuracy</span>
         <span className="text-right">Fluency</span>
         <span className="text-right">Langs</span>
-        <span className="text-right">Size</span>
+        <span className={`text-right cursor-pointer select-none hover:text-slate-600 ${sortKey === "size" ? "text-blue-500" : ""}`} onClick={() => onSortChange("size")}>
+          Size {sortKey === "size" ? "↑" : ""}
+        </span>
       </div>
       {models.map(m => (
         <button
@@ -163,8 +179,8 @@ function ModelRows({
               <p className="text-[11px] text-slate-400 mt-0.5">{m.description}</p>
             </div>
           </div>
-          <div className="flex justify-end"><AvgScore value={m.score.avg} /></div>
-          <span className="text-xs font-mono text-slate-600 text-right">{m.score.accuracy.toFixed(1)}</span>
+          <div className="flex justify-end"><AvgScore value={m.score.accuracy} /></div>
+          <span className="text-xs font-mono text-slate-600 text-right">{m.score.avg.toFixed(1)}</span>
           <span className="text-xs font-mono text-slate-600 text-right">{m.score.fluency.toFixed(1)}</span>
           <span className="text-xs font-mono text-slate-500 text-right">{m.langCount}</span>
           <span className="text-xs text-slate-400 text-right">{m.sizeHuman}</span>
@@ -358,8 +374,22 @@ export default function Translator() {
 
     (async () => {
       try {
-        const { CreateWebWorkerMLCEngine } = await import("@mlc-ai/web-llm");
+        const { CreateWebWorkerMLCEngine, prebuiltAppConfig } = await import("@mlc-ai/web-llm");
         if (cancelled) return;
+
+        // Gemma 3 1B ships with both context_window_size and sliding_window_size
+        // set to positive values, which web-llm rejects. Patch sliding_window_size to -1.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const appConfig: any = model.id === "gemma3-1b-it-q4f16_1-MLC"
+          ? {
+              ...prebuiltAppConfig,
+              model_list: prebuiltAppConfig.model_list.map((m: { model_id: string; overrides?: Record<string, unknown> }) =>
+                m.model_id === "gemma3-1b-it-q4f16_1-MLC"
+                  ? { ...m, overrides: { ...m.overrides, sliding_window_size: -1 } }
+                  : m
+              ),
+            }
+          : undefined;
 
         mlcWorkerRef.current = new Worker(
           new URL("../app/mlc-worker.js", import.meta.url),
@@ -376,6 +406,7 @@ export default function Translator() {
               setMlcProgressText(p.text ?? "");
               if (p.progress >= 1) { setStatus("ready"); setMlcProgressText(""); }
             },
+            ...(appConfig ? { appConfig } : {}),
           }
         );
 
