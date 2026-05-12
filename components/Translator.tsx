@@ -536,7 +536,7 @@ export default function Translator() {
 
   const isWebGPUBackend = activeModel.backend === "mlc" || activeModel.backend === "onnx-webgpu";
 
-  const overallProgress = isWebGPUBackend
+  const overallProgress = activeModel.backend === "mlc"
     ? mlcProgress
     : progressItems.length > 0
       ? Math.round(progressItems.reduce((s, p) => s + (p.progress ?? 0), 0) / progressItems.length)
@@ -644,15 +644,15 @@ export default function Translator() {
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2 text-slate-600">
                   <Spinner className="w-3.5 h-3.5 text-blue-500" />
-                  {isWebGPUBackend
+                  {activeModel.backend === "mlc"
                     ? (mlcProgressText || `Loading ${activeModel.name} via WebGPU…`)
-                    : `Downloading ${activeModel.name} (${activeModel.sizeHuman}) — cached after first load`}
+                    : `Downloading ${activeModel.name} (${activeModel.sizeHuman}) via WebGPU — cached after first load`}
                 </span>
                 {overallProgress > 0 && <span className="text-slate-400 text-xs font-mono">{overallProgress}%</span>}
               </div>
               {overallProgress > 0 && (
                 <div className="w-full bg-slate-100 rounded-full h-1.5">
-                  <div className={`h-1.5 rounded-full transition-all ${isWebGPUBackend ? "bg-violet-500" : "bg-blue-500"}`}
+                  <div className={`h-1.5 rounded-full transition-all ${activeModel.backend === "mlc" ? "bg-violet-500" : "bg-blue-500"}`}
                     style={{ width: `${overallProgress}%` }} />
                 </div>
               )}

@@ -9,7 +9,7 @@ let generator = null;
 async function loadModel(modelId, onProgress) {
   generator = await pipeline("text-generation", modelId, {
     device: "webgpu",
-    dtype: "q4f16",
+    dtype: "q4",
     progress_callback: onProgress,
   });
 }
