@@ -11,10 +11,6 @@ type ProgressItem = { file: string; status: string; progress: number };
 
 const NODE_PREFIX = "node-";
 
-function getApiBase(): string {
-  const ws = process.env.NEXT_PUBLIC_NODE_SERVER_URL ?? "ws://localhost:3001/node";
-  return ws.replace(/^wss:\/\//, "https://").replace(/^ws:\/\//, "http://").replace(/\/node$/, "");
-}
 
 function Spinner({ className = "w-4 h-4" }: { className?: string }) {
   return <div className={`${className} border-2 border-current border-t-transparent rounded-full animate-spin opacity-60`} />;
@@ -73,12 +69,11 @@ function sortModels(models: TranslatorModel[], key: SortKey): TranslatorModel[] 
 }
 
 function ModelPicker({
-  selected, onChange, hasWebGPU, ollamaOnline,
+  selected, onChange, hasWebGPU,
 }: {
   selected: TranslatorModel;
   onChange: (m: TranslatorModel) => void;
   hasWebGPU: boolean | null;
-  ollamaOnline: boolean | null;
 }) {
   const [open, setOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("accuracy");
@@ -93,10 +88,8 @@ function ModelPicker({
   }, []);
 
   const isWebGPU = selected.backend === "mlc" || selected.backend === "onnx-webgpu";
-  const isOllama = selected.backend === "ollama";
-  const onnxModels   = sortModels(ONNX_MODELS.filter(m => m.backend === "onnx"), sortKey);
-  const gpuModels    = sortModels(ONNX_MODELS.filter(m => m.backend === "mlc" || m.backend === "onnx-webgpu"), sortKey);
-  const ollamaModels = sortModels(ONNX_MODELS.filter(m => m.backend === "ollama"), sortKey);
+  const onnxModels = sortModels(ONNX_MODELS.filter(m => m.backend === "onnx"), sortKey);
+  const gpuModels  = sortModels(ONNX_MODELS.filter(m => m.backend === "mlc" || m.backend === "onnx-webgpu"), sortKey);
 
   return (
     <div ref={ref} className="relative">
@@ -105,7 +98,6 @@ function ModelPicker({
         className="flex items-center gap-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50 transition-colors shadow-sm"
       >
         {isWebGPU && <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">WebGPU</span>}
-        {isOllama && <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Server</span>}
         <span className="text-base leading-none">{selected.score.badge}</span>
         <span>{selected.name}</span>
         <span className="text-slate-400 text-xs">·</span>
@@ -138,18 +130,6 @@ function ModelPicker({
             </span>
           </div>
           <ModelRows models={gpuModels} selected={selected} onChange={m => { onChange(m); setOpen(false); }} dimmed={hasWebGPU === false} sortKey={sortKey} onSortChange={setSortKey} />
-
-          {/* Ollama server section */}
-          <div className="px-4 py-2 border-b border-slate-100 bg-emerald-50/60 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Server</span>
-              <span className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider">Ollama — self-hosted large models</span>
-            </div>
-            <span className={`text-[10px] font-medium ${ollamaOnline === true ? "text-emerald-600" : ollamaOnline === false ? "text-red-500" : "text-slate-400"}`}>
-              {ollamaOnline === true ? "✓ server online" : ollamaOnline === false ? "✗ server offline" : "checking…"}
-            </span>
-          </div>
-          <ModelRows models={ollamaModels} selected={selected} onChange={m => { onChange(m); setOpen(false); }} dimmed={ollamaOnline === false} sortKey={sortKey} onSortChange={setSortKey} />
         </div>
       )}
     </div>
@@ -195,7 +175,6 @@ function ModelRows({
                 <span className="text-sm font-medium text-slate-800">{m.name}</span>
                 {m.backend === "onnx-webgpu" && <span className="text-[9px] font-semibold bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-full shrink-0">ONNX</span>}
                 {m.backend === "mlc"          && <span className="text-[9px] font-semibold bg-violet-50 text-violet-600 border border-violet-100 px-1.5 py-0.5 rounded-full shrink-0">MLC</span>}
-                {m.backend === "ollama"       && <span className="text-[9px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded-full shrink-0">Ollama</span>}
                 {m.id === selected.id && <span className="text-[10px] text-blue-600 font-medium shrink-0">active</span>}
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">{m.description}</p>
@@ -306,7 +285,6 @@ export default function Translator() {
   const [mlcProgress, setMlcProgress]     = useState(0);
   const [mlcProgressText, setMlcProgressText] = useState("");
   const [hasWebGPU, setHasWebGPU]         = useState<boolean | null>(null);
-  const [ollamaOnline, setOllamaOnline]   = useState<boolean | null>(null);
 
   const workerRef    = useRef<Worker | null>(null);
   const tgWorkerRef  = useRef<Worker | null>(null);
@@ -321,21 +299,6 @@ export default function Translator() {
     setHasWebGPU(typeof navigator !== "undefined" && "gpu" in navigator);
   }, []);
 
-  // Check Ollama server availability
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const res = await fetch(`${getApiBase()}/ollama/health`, { signal: AbortSignal.timeout(4000) });
-        setOllamaOnline(res.ok);
-      } catch {
-        setOllamaOnline(false);
-      }
-    };
-    check();
-    const interval = setInterval(check, 30_000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Sync ?model= URL param whenever active model changes
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -344,8 +307,8 @@ export default function Translator() {
   }, [activeModel]);
 
   const langTypeForModel =
-    activeModel.backend === "mlc" || activeModel.backend === "onnx-webgpu" || activeModel.backend === "ollama"
-      ? "ollama" as const
+    activeModel.backend === "mlc" || activeModel.backend === "onnx-webgpu"
+      ? "mlc" as const
       : (activeModel.langType ?? "nllb");
 
   const activeLangs    = LANGUAGES.filter(l => availableFor(l, langTypeForModel));
@@ -488,10 +451,6 @@ export default function Translator() {
     } else if (activeModel.backend === "onnx-webgpu") {
       if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
       return initTgWorker(activeModel);
-    } else if (activeModel.backend === "ollama") {
-      if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
-      if (tgWorkerRef.current) { tgWorkerRef.current.terminate(); tgWorkerRef.current = null; }
-      setStatus("ready");
     } else {
       if (workerRef.current) { workerRef.current.terminate(); workerRef.current = null; }
       if (tgWorkerRef.current) { tgWorkerRef.current.terminate(); tgWorkerRef.current = null; }
@@ -549,26 +508,6 @@ export default function Translator() {
       return;
     }
 
-    if (activeModel.backend === "ollama") {
-      const srcName = LANGUAGES.find(l => l.code === safeSourceLang)?.name ?? safeSourceLang;
-      const tgtName = LANGUAGES.find(l => l.code === safeTargetLang)?.name ?? safeTargetLang;
-      try {
-        const res = await fetch(`${getApiBase()}/ollama/translate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: sourceText.trim(), srcLang: srcName, tgtLang: tgtName, model: activeModel.id }),
-        });
-        const data = await res.json() as { translation?: string; error?: string };
-        if (!res.ok || data.error) throw new Error(data.error ?? "Server error");
-        setOutputText(data.translation ?? "");
-        setStatus("ready");
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Ollama request failed");
-        setStatus("error");
-      }
-      return;
-    }
-
     // ONNX WASM
     if (!workerRef.current) { setStatus("ready"); return; }
     const srcLang = LANGUAGES.find(l => l.code === safeSourceLang)!;
@@ -621,7 +560,6 @@ export default function Translator() {
     setError("");
     if (activeModel.backend === "mlc") initMlcEngine(activeModel);
     else if (activeModel.backend === "onnx-webgpu") initTgWorker(activeModel);
-    else if (activeModel.backend === "ollama") setStatus("ready");
     else { setStatus("loading"); workerRef.current?.postMessage({ type: "load", id: 0, payload: { modelId: activeModel.id } }); }
   };
 
@@ -631,7 +569,7 @@ export default function Translator() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Model</span>
-          <ModelPicker selected={activeModel} onChange={handleModelChange} hasWebGPU={hasWebGPU} ollamaOnline={ollamaOnline} />
+          <ModelPicker selected={activeModel} onChange={handleModelChange} hasWebGPU={hasWebGPU} />
         </div>
         <div className="text-xs text-slate-400 hidden sm:block">{activeModel.description}</div>
       </div>
@@ -736,22 +674,17 @@ export default function Translator() {
           {status === "ready" && (
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-              {activeModel.backend === "ollama"
-                ? <>{activeModel.name} · <span className="text-xs text-slate-400">via Ollama server</span></>
-                : <>{activeModel.name} ready</>
-              }
+              {activeModel.name} ready
               {isWebGPUBackend
                 ? <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">WebGPU</span>
-                : activeModel.backend === "ollama"
-                  ? <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Server</span>
-                  : <span className="text-xs text-slate-400">· WASM · zero data sharing</span>}
+                : <span className="text-xs text-slate-400">· WASM · zero data sharing</span>}
             </div>
           )}
 
           {status === "translating" && (
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <Spinner className="w-3.5 h-3.5 text-blue-500" />
-              {activeModel.backend === "ollama" ? "Sending to Ollama server…" : "Running inference locally…"}
+              Running inference locally…
             </div>
           )}
 

@@ -1,5 +1,5 @@
 export type LangType  = "nllb" | "m2m100";
-export type Backend   = "onnx" | "mlc" | "onnx-webgpu" | "ollama";
+export type Backend   = "onnx" | "mlc" | "onnx-webgpu";
 export type SpeedTier = "fast" | "medium" | "slow";
 export type Badge     = "🟢" | "🟡" | "🟠";
 
@@ -128,40 +128,6 @@ export const ONNX_MODELS: TranslatorModel[] = [
     score: { avg: 7.9, accuracy: 8.1, fluency: 8.2, style: 7.5, badge: "🟡", langCount: 92, verified: false },
   },
 
-  // ── Ollama (self-hosted server) ────────────────────────────────────────────
-  {
-    id: "gemma4:31b",
-    backend: "ollama",
-    name: "Gemma 4 31B",
-    family: "Gemma 4",
-    sizeHuman: "~19 GB",
-    langCount: 227,
-    speed: "medium",
-    description: "Google Gemma 4 31B Q4. Runs on your self-hosted Ollama server.",
-    score: { avg: 7.7, accuracy: 8.1, fluency: 8.3, style: 7.5, badge: "🟡", langCount: 227, verified: false },
-  },
-  {
-    id: "gemma3:27b",
-    backend: "ollama",
-    name: "Gemma 3 27B",
-    family: "Gemma 3",
-    sizeHuman: "~17 GB",
-    langCount: 227,
-    speed: "medium",
-    description: "Google Gemma 3 27B. High-accuracy multilingual translation via Ollama.",
-    score: { avg: 7.5, accuracy: 7.8, fluency: 8.2, style: 7.2, badge: "🟡", langCount: 227, verified: false },
-  },
-  {
-    id: "qwen3.5:35b",
-    backend: "ollama",
-    name: "Qwen3.5 35B",
-    family: "Qwen3.5",
-    sizeHuman: "~22 GB",
-    langCount: 92,
-    speed: "medium",
-    description: "Alibaba Qwen3.5 35B. Top multilingual quality on Ollama.",
-    score: { avg: 7.5, accuracy: 7.8, fluency: 8.0, style: 7.3, badge: "🟡", langCount: 92, verified: false },
-  },
 ];
 
 export const BENCHMARK_TABLE: BenchmarkEntry[] = [
