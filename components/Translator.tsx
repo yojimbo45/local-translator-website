@@ -268,7 +268,11 @@ function stripThinking(text: string): string {
 // ── Main Translator ───────────────────────────────────────────────────────────
 
 export default function Translator() {
-  const [activeModel, setActiveModel]     = useState<TranslatorModel>(DEFAULT_MODEL);
+  const [activeModel, setActiveModel] = useState<TranslatorModel>(() => {
+    if (typeof window === "undefined") return DEFAULT_MODEL;
+    const id = new URLSearchParams(window.location.search).get("model");
+    return (id && ONNX_MODELS.find(m => m.id === id)) || DEFAULT_MODEL;
+  });
   const [sourceText, setSourceText]       = useState("");
   const [outputText, setOutputText]       = useState("");
   const [sourceLang, setSourceLang]       = useState("eng_Latn");
@@ -293,6 +297,13 @@ export default function Translator() {
   useEffect(() => {
     setHasWebGPU(typeof navigator !== "undefined" && "gpu" in navigator);
   }, []);
+
+  // Sync ?model= URL param whenever active model changes
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("model", activeModel.id);
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  }, [activeModel]);
 
   const langTypeForModel =
     activeModel.backend === "mlc" || activeModel.backend === "onnx-webgpu"
