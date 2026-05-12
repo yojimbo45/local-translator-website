@@ -15,6 +15,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { randomUUID } from "crypto";
 
+const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://ollama:11434";
+
 // ── ISO 639-1 → NLLB code (used by the browser NLLB-200 model) ───────────────
 const ISO_TO_NLLB: Record<string, string> = {
   en:"eng_Latn", fr:"fra_Latn", es:"spa_Latn", de:"deu_Latn", it:"ita_Latn",
@@ -156,6 +158,62 @@ async function handleHTTP(req: IncomingMessage, res: ServerResponse) {
       return reply(res, 200, { translation, source, target, ms: Date.now() - t0 });
     } catch (e: any) {
       return reply(res, 502, { error: e.message });
+    }
+  }
+
+  // GET /ollama/health — check if Ollama is reachable and list loaded models
+  if (req.method === "GET" && pathname === "/ollama/health") {
+    try {
+      const r = await fetch(`${OLLAMA_URL}/api/tags`, { signal: AbortSignal.timeout(3000) });
+      if (!r.ok) return reply(res, 502, { error: "Ollama unreachable" });
+      const data = await r.json() as { models: { name: string }[] };
+      const models = data.models?.map((m: { name: string }) => m.name) ?? [];
+      return reply(res, 200, { ok: true, models });
+    } catch {
+      return reply(res, 502, { error: "Ollama unreachable" });
+    }
+  }
+
+  // POST /ollama/translate — translate via Ollama
+  if (req.method === "POST" && pathname === "/ollama/translate") {
+    let body: { text?: string; srcLang?: string; tgtLang?: string; model?: string };
+    try { body = JSON.parse(await readBody(req)); }
+    catch { return reply(res, 400, { error: "Invalid JSON" }); }
+
+    const { text, srcLang, tgtLang, model } = body;
+    if (!text?.trim())   return reply(res, 400, { error: "text is required" });
+    if (!srcLang)        return reply(res, 400, { error: "srcLang is required" });
+    if (!tgtLang)        return reply(res, 400, { error: "tgtLang is required" });
+    if (!model)          return reply(res, 400, { error: "model is required" });
+
+    try {
+      const r = await fetch(`${OLLAMA_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          stream: false,
+          messages: [
+            {
+              role: "system",
+              content: `You are a professional translator. Translate the following text from ${srcLang} to ${tgtLang}. Output ONLY the translation, no explanations, no notes.`,
+            },
+            { role: "user", content: text.trim() },
+          ],
+        }),
+        signal: AbortSignal.timeout(120_000),
+      });
+
+      if (!r.ok) {
+        const err = await r.text();
+        return reply(res, 502, { error: `Ollama error: ${err}` });
+      }
+
+      const data = await r.json() as { message: { content: string } };
+      const translation = data.message?.content?.trim() ?? "";
+      return reply(res, 200, { translation });
+    } catch (e: unknown) {
+      return reply(res, 502, { error: e instanceof Error ? e.message : "Ollama request failed" });
     }
   }
 

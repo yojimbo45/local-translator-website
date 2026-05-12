@@ -4,8 +4,28 @@ services:
     restart: unless-stopped
     environment:
       PORT: "3001"
+      OLLAMA_URL: "http://ollama:11434"
     networks:
       - internal
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - internal
+    # ── GPU support ─────────────────────────────────────────────────────────
+    # Uncomment for NVIDIA GPU (requires nvidia-container-toolkit on the host):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
   caddy:
     image: caddy:2-alpine
@@ -16,7 +36,7 @@ services:
       - "443:443/udp"   # HTTP/3
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data       # stores TLS certificates
+      - caddy_data:/data
       - caddy_config:/config
     environment:
       DOMAIN: ${DOMAIN}
@@ -29,3 +49,4 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  ollama_data:

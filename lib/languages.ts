@@ -10,8 +10,8 @@ export function langCode(lang: Language, langType: "nllb" | "m2m100"): string {
   return langType === "nllb" ? lang.code : lang.iso;
 }
 
-export function availableFor(lang: Language, langType: "nllb" | "m2m100" | "mlc" | "onnx-webgpu"): boolean {
-  if (langType === "mlc" || langType === "onnx-webgpu") return true;
+export function availableFor(lang: Language, langType: "nllb" | "m2m100" | "mlc" | "onnx-webgpu" | "ollama"): boolean {
+  if (langType === "mlc" || langType === "onnx-webgpu" || langType === "ollama") return true;
   if (langType === "m2m100" && lang.m2m === false) return false;
   return true;
 }
