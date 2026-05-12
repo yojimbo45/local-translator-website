@@ -245,6 +245,10 @@ function BenchmarkTable() {
   );
 }
 
+function stripThinking(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>\n*/g, "").trim();
+}
+
 // ── Main Translator ───────────────────────────────────────────────────────────
 
 export default function Translator() {
@@ -425,18 +429,22 @@ export default function Translator() {
       if (!mlcEngineRef.current) { setStatus("ready"); return; }
       const srcName = LANGUAGES.find(l => l.code === safeSourceLang)?.name ?? safeSourceLang;
       const tgtName = LANGUAGES.find(l => l.code === safeTargetLang)?.name ?? safeTargetLang;
-      const isQwen3 = activeModel.id.startsWith("Qwen3");
-      const systemMsg = isQwen3
-        ? `/no_think You are a professional translator. Translate to ${tgtName}. Output only the translation.`
-        : `You are a professional translator. Translate from ${srcName} to ${tgtName}. Output only the translation, no explanations.`;
+      const isQwen = activeModel.id.toLowerCase().startsWith("qwen");
+      const systemMsg = isQwen
+        ? `/no_think You are a professional translator. Translate the text from ${srcName} to ${tgtName}. Output ONLY the translation, no explanations, no notes.`
+        : `You are a professional translator. Translate the text from ${srcName} to ${tgtName}. Output ONLY the translation, no explanations, no notes.`;
       try {
         const reply = await mlcEngineRef.current.chat.completions.create({
-          messages: [{ role: "system", content: systemMsg }, { role: "user", content: sourceText.trim() }],
+          messages: [
+            { role: "system", content: systemMsg },
+            { role: "user",   content: sourceText.trim() },
+          ],
           temperature: 0.1,
           max_tokens: 1024,
           stream: false,
         });
-        setOutputText(reply.choices[0].message.content?.trim() ?? "");
+        const raw = reply.choices[0].message.content?.trim() ?? "";
+        setOutputText(stripThinking(raw));
         setStatus("ready");
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));

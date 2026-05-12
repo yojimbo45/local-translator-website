@@ -34,14 +34,26 @@ self.onmessage = async ({ data: { type, id, payload } }) => {
     try {
       const { text, srcName, tgtName } = payload;
       const messages = [
-        { role: "system", content: `You are a professional translator. Translate from ${srcName} to ${tgtName}. Output only the translation, no explanations, no notes.` },
+        {
+          role: "system",
+          content: `You are a professional translator. Translate the following text from ${srcName} to ${tgtName}. Output ONLY the translation — no explanations, no notes, no extra text.`,
+        },
         { role: "user", content: text },
       ];
-      const out = await generator(messages, { max_new_tokens: 512, temperature: 0.1, do_sample: false });
+      const out = await generator(messages, {
+        max_new_tokens: 512,
+        do_sample: false,
+        return_full_text: false,
+      });
       const generated = out[0].generated_text;
-      const reply = Array.isArray(generated)
-        ? generated[generated.length - 1].content
-        : generated;
+      // Transformers.js v3: messages input → generated_text is the new messages array
+      // with the assistant reply appended, OR a plain string when return_full_text: false
+      let reply;
+      if (Array.isArray(generated)) {
+        reply = generated[generated.length - 1]?.content ?? "";
+      } else {
+        reply = generated ?? "";
+      }
       self.postMessage({ type: "translated", id, payload: { translation: reply.trim() } });
     } catch (err) {
       self.postMessage({ type: "error", id, payload: { message: err.message } });
