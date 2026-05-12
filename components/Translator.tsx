@@ -73,13 +73,12 @@ function sortModels(models: TranslatorModel[], key: SortKey): TranslatorModel[] 
 }
 
 function ModelPicker({
-  selected, onChange, hasWebGPU, ollamaOnline, vramGB,
+  selected, onChange, hasWebGPU, ollamaOnline,
 }: {
   selected: TranslatorModel;
   onChange: (m: TranslatorModel) => void;
   hasWebGPU: boolean | null;
   ollamaOnline: boolean | null;
-  vramGB: number | null;
 }) {
   const [open, setOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("accuracy");
@@ -121,15 +120,6 @@ function ModelPicker({
       {open && (
         <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden min-w-[700px]">
 
-          {/* VRAM info bar */}
-          {vramGB !== null && (
-            <div className="px-4 py-2 border-b border-slate-100 bg-amber-50/60 flex items-center gap-2 text-[10px] text-amber-700">
-              <span className="font-semibold">GPU VRAM detected: ~{vramGB} GB</span>
-              <span className="text-amber-500">·</span>
-              <span>Models under {vramGB} GB run in-browser · larger ones need the Ollama server</span>
-            </div>
-          )}
-
           {/* ONNX / WASM section */}
           <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">ONNX — Universal (WASM)</span>
@@ -147,7 +137,7 @@ function ModelPicker({
               {hasWebGPU === true ? "✓ WebGPU detected" : hasWebGPU === false ? "✗ not available" : "detecting…"}
             </span>
           </div>
-          <ModelRows models={gpuModels} selected={selected} onChange={m => { onChange(m); setOpen(false); }} dimmed={hasWebGPU === false} sortKey={sortKey} onSortChange={setSortKey} vramGB={vramGB} />
+          <ModelRows models={gpuModels} selected={selected} onChange={m => { onChange(m); setOpen(false); }} dimmed={hasWebGPU === false} sortKey={sortKey} onSortChange={setSortKey} />
 
           {/* Ollama server section */}
           <div className="px-4 py-2 border-b border-slate-100 bg-emerald-50/60 flex items-center justify-between">
@@ -167,7 +157,7 @@ function ModelPicker({
 }
 
 function ModelRows({
-  models, selected, onChange, dimmed = false, sortKey, onSortChange, vramGB = null,
+  models, selected, onChange, dimmed = false, sortKey, onSortChange,
 }: {
   models: TranslatorModel[];
   selected: TranslatorModel;
@@ -175,7 +165,6 @@ function ModelRows({
   dimmed?: boolean;
   sortKey: SortKey;
   onSortChange: (k: SortKey) => void;
-  vramGB?: number | null;
 }) {
   return (
     <>
@@ -191,15 +180,12 @@ function ModelRows({
           Size {sortKey === "size" ? "↑" : ""}
         </span>
       </div>
-      {models.map(m => {
-        const modelGB = parseFloat(m.sizeHuman.replace(/[^0-9.]/g, "")) || 0;
-        const tooLarge = vramGB !== null && modelGB > vramGB;
-        return (
+      {models.map(m => (
         <button
           key={m.id}
           onClick={() => onChange(m)}
           className={`w-full grid grid-cols-[1fr_56px_56px_56px_48px_72px] gap-x-3 items-center px-4 py-3 text-left transition-colors border-b border-slate-50 last:border-0 ${
-            m.id === selected.id ? "bg-blue-50/60" : (dimmed || tooLarge) ? "opacity-50 hover:bg-slate-50" : "hover:bg-slate-50"
+            m.id === selected.id ? "bg-blue-50/60" : dimmed ? "opacity-50 hover:bg-slate-50" : "hover:bg-slate-50"
           }`}
         >
           <div className="flex items-center gap-2 min-w-0">
@@ -210,7 +196,6 @@ function ModelRows({
                 {m.backend === "onnx-webgpu" && <span className="text-[9px] font-semibold bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-full shrink-0">ONNX</span>}
                 {m.backend === "mlc"          && <span className="text-[9px] font-semibold bg-violet-50 text-violet-600 border border-violet-100 px-1.5 py-0.5 rounded-full shrink-0">MLC</span>}
                 {m.backend === "ollama"       && <span className="text-[9px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded-full shrink-0">Ollama</span>}
-                {tooLarge && <span className="text-[9px] font-semibold bg-red-50 text-red-500 border border-red-100 px-1.5 py-0.5 rounded-full shrink-0">too large</span>}
                 {m.id === selected.id && <span className="text-[10px] text-blue-600 font-medium shrink-0">active</span>}
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">{m.description}</p>
@@ -222,8 +207,7 @@ function ModelRows({
           <span className="text-xs font-mono text-slate-500 text-right">{m.langCount}</span>
           <span className="text-xs text-slate-400 text-right">{m.sizeHuman}</span>
         </button>
-        );
-      })}
+      ))}
     </>
   );
 }
@@ -323,7 +307,6 @@ export default function Translator() {
   const [mlcProgressText, setMlcProgressText] = useState("");
   const [hasWebGPU, setHasWebGPU]         = useState<boolean | null>(null);
   const [ollamaOnline, setOllamaOnline]   = useState<boolean | null>(null);
-  const [vramGB, setVramGB]               = useState<number | null>(null);
 
   const workerRef    = useRef<Worker | null>(null);
   const tgWorkerRef  = useRef<Worker | null>(null);
@@ -336,20 +319,6 @@ export default function Translator() {
 
   useEffect(() => {
     setHasWebGPU(typeof navigator !== "undefined" && "gpu" in navigator);
-  }, []);
-
-  // Estimate GPU VRAM via WebGPU adapter limits
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("gpu" in navigator)) return;
-    (async () => {
-      try {
-        // @ts-expect-error WebGPU not in all TS libs
-        const adapter = await navigator.gpu.requestAdapter();
-        if (!adapter) return;
-        const mb = adapter.limits?.maxBufferSize ?? adapter.limits?.maxStorageBufferBindingSize;
-        if (mb) setVramGB(Math.round((mb / 1024 / 1024 / 1024) * 10) / 10);
-      } catch { /* ignore */ }
-    })();
   }, []);
 
   // Check Ollama server availability
@@ -662,7 +631,7 @@ export default function Translator() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Model</span>
-          <ModelPicker selected={activeModel} onChange={handleModelChange} hasWebGPU={hasWebGPU} ollamaOnline={ollamaOnline} vramGB={vramGB} />
+          <ModelPicker selected={activeModel} onChange={handleModelChange} hasWebGPU={hasWebGPU} ollamaOnline={ollamaOnline} />
         </div>
         <div className="text-xs text-slate-400 hidden sm:block">{activeModel.description}</div>
       </div>
