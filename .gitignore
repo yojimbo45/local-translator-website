@@ -1,0 +1,5 @@
+node_modules/
+.next/
+out/
+# Model weights — large binaries, downloaded locally via npm run model:download
+public/models/

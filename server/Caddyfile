@@ -1,0 +1,5 @@
+{$DOMAIN} {
+    # Caddy auto-provisions HTTPS via Let's Encrypt.
+    # WebSocket upgrade headers are forwarded automatically.
+    reverse_proxy api:3001
+}

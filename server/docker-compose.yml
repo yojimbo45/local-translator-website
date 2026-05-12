@@ -1,0 +1,31 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: "3001"
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # stores TLS certificates
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN}
+    networks:
+      - internal
+
+networks:
+  internal:
+
+volumes:
+  caddy_data:
+  caddy_config:

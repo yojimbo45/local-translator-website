@@ -1,0 +1,12 @@
+name = "browser-translator-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "0585b09f80d8486475ba222e78488857"
+
+# Workers AI binding — no config needed, Cloudflare handles the model
+[ai]
+binding = "AI"
+
+# Optional: set a custom domain later via Cloudflare dashboard
+# routes = [{ pattern = "api.yourdomain.com/*", zone_name = "yourdomain.com" }]
